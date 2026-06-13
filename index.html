@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fast & Furious: Tauranga Streets</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #000;
+      font-family: 'Arial Black', Arial, sans-serif;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    #map {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+    }
+
+    #gameCanvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+    }
+
+    #hud {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+    }
+
+    /* ── Speedometer ── */
+    #speedometer {
+      position: absolute;
+      bottom: 30px;
+      right: 30px;
+      width: 180px;
+      height: 180px;
+    }
+
+    /* ── Gear indicator ── */
+    #gear-display {
+      position: absolute;
+      bottom: 50px;
+      right: 230px;
+      color: #ff4400;
+      font-size: 64px;
+      font-weight: 900;
+      text-shadow: 0 0 20px #ff4400, 0 0 40px #ff2200;
+      letter-spacing: -2px;
+    }
+
+    /* ── NOS bar ── */
+    #nos-container {
+      position: absolute;
+      bottom: 30px;
+      left: 30px;
+      width: 200px;
+    }
+    #nos-label {
+      color: #00ccff;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 3px;
+      text-shadow: 0 0 10px #00ccff;
+      margin-bottom: 6px;
+    }
+    #nos-bar-bg {
+      width: 100%;
+      height: 16px;
+      background: rgba(0,0,0,0.6);
+      border: 2px solid #00ccff;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 0 10px #00ccff;
+    }
+    #nos-bar {
+      height: 100%;
+      width: 100%;
+      background: linear-gradient(90deg, #0055ff, #00ccff, #ffffff);
+      border-radius: 6px;
+      transition: width 0.05s linear;
+      box-shadow: 0 0 8px #00ccff inset;
+    }
+
+    /* ── RPM bar ── */
+    #rpm-container {
+      position: absolute;
+      bottom: 60px;
+      left: 30px;
+      width: 200px;
+    }
+    #rpm-label {
+      color: #ff4400;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 3px;
+      text-shadow: 0 0 10px #ff4400;
+      margin-bottom: 6px;
+    }
+    #rpm-bar-bg {
+      width: 100%;
+      height: 10px;
+      background: rgba(0,0,0,0.6);
+      border: 2px solid #ff4400;
+      border-radius: 5px;
+      overflow: hidden;
+      box-shadow: 0 0 10px #ff4400;
+    }
+    #rpm-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #ff4400, #ffaa00, #ffffff);
+      border-radius: 3px;
+      transition: width 0.05s linear;
+    }
+
+    /* ── Title banner ── */
+    #title-banner {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      text-align: center;
+      pointer-events: none;
+    }
+    #title-banner h1 {
+      font-size: 28px;
+      font-weight: 900;
+      color: #fff;
+      text-transform: uppercase;
+      letter-spacing: 4px;
+      text-shadow: 0 0 20px #ff4400, 2px 2px 0 #aa0000;
+      line-height: 1;
+    }
+    #title-banner .subtitle {
+      font-size: 13px;
+      color: #ff6600;
+      letter-spacing: 6px;
+      text-shadow: 0 0 10px #ff4400;
+      margin-top: 4px;
+    }
+
+    /* ── Controls hint ── */
+    #controls-hint {
+      position: absolute;
+      top: 100px;
+      left: 20px;
+      background: rgba(0,0,0,0.7);
+      border: 1px solid #ff440055;
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: #aaa;
+      font-size: 11px;
+      line-height: 1.8;
+    }
+    #controls-hint span { color: #ff8800; font-weight: bold; }
+
+    /* ── Drift/NOS flash ── */
+    #effect-overlay {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      opacity: 0;
+      background: radial-gradient(ellipse at center, transparent 40%, rgba(0,200,255,0.15) 100%);
+      transition: opacity 0.1s;
+    }
+    #effect-overlay.nos-active { opacity: 1; }
+
+    /* ── Drift smoke label ── */
+    #drift-label {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 48px;
+      font-weight: 900;
+      color: #ffaa00;
+      text-shadow: 0 0 30px #ff4400, 0 0 60px #ff2200;
+      text-transform: uppercase;
+      letter-spacing: 8px;
+      opacity: 0;
+      transition: opacity 0.2s;
+      pointer-events: none;
+    }
+
+    /* ── Speed flash vignette when fast ── */
+    #speed-vignette {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      background: radial-gradient(ellipse at center, transparent 50%, rgba(255,50,0,0) 100%);
+      opacity: 0;
+    }
+
+    /* ── Start screen ── */
+    #start-screen {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.85);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+    #start-screen h1 {
+      font-size: 52px;
+      font-weight: 900;
+      color: #fff;
+      text-transform: uppercase;
+      letter-spacing: 6px;
+      text-shadow: 0 0 30px #ff4400, 3px 3px 0 #aa0000;
+      margin-bottom: 8px;
+    }
+    #start-screen .and {
+      font-size: 36px;
+      color: #ff4400;
+      text-shadow: 0 0 20px #ff4400;
+      margin-bottom: 4px;
+    }
+    #start-screen h2 {
+      font-size: 36px;
+      font-weight: 900;
+      color: #fff;
+      text-transform: uppercase;
+      letter-spacing: 6px;
+      text-shadow: 0 0 20px #ff4400;
+      margin-bottom: 6px;
+    }
+    #start-screen .location {
+      font-size: 16px;
+      color: #ff6600;
+      letter-spacing: 8px;
+      text-shadow: 0 0 10px #ff4400;
+      margin-bottom: 50px;
+    }
+    #start-screen .start-btn {
+      background: linear-gradient(135deg, #ff4400, #ff0000);
+      color: #fff;
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      border: none;
+      padding: 16px 48px;
+      border-radius: 4px;
+      cursor: pointer;
+      box-shadow: 0 0 30px #ff4400, 0 4px 15px rgba(0,0,0,0.5);
+      pointer-events: all;
+      transition: transform 0.1s, box-shadow 0.1s;
+    }
+    #start-screen .start-btn:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 50px #ff4400, 0 4px 20px rgba(0,0,0,0.6);
+    }
+    #start-screen .api-note {
+      margin-top: 24px;
+      color: #888;
+      font-size: 12px;
+      text-align: center;
+      line-height: 1.6;
+      max-width: 420px;
+    }
+    #start-screen .api-note a { color: #ff8800; }
+
+    /* ── API key input ── */
+    #api-key-section {
+      margin-bottom: 30px;
+      text-align: center;
+    }
+    #api-key-section label {
+      display: block;
+      color: #aaa;
+      font-size: 12px;
+      letter-spacing: 2px;
+      margin-bottom: 8px;
+    }
+    #api-key-input {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid #ff440088;
+      color: #fff;
+      font-size: 14px;
+      padding: 10px 16px;
+      border-radius: 4px;
+      width: 340px;
+      outline: none;
+      text-align: center;
+    }
+    #api-key-input:focus { border-color: #ff4400; box-shadow: 0 0 10px #ff440044; }
+    #api-key-input::placeholder { color: #555; }
+  </style>
+</head>
+<body>
+
+<!-- Start Screen -->
+<div id="start-screen">
+  <h1>Fast</h1>
+  <div class="and">&amp;</div>
+  <h2>Furious</h2>
+  <div class="location">TAURANGA STREETS · BAY OF PLENTY · NZ</div>
+
+  <div id="api-key-section">
+    <label>GOOGLE MAPS API KEY</label>
+    <input id="api-key-input" type="text" placeholder="Paste your API key here..." spellcheck="false" />
+  </div>
+
+  <button class="start-btn" onclick="startGame()">START ENGINE</button>
+  <div class="api-note">
+    Requires a Google Maps JavaScript API key with Maps &amp; Places enabled.<br/>
+    Get one free at <a href="https://console.cloud.google.com/google/maps-apis" target="_blank">console.cloud.google.com</a>
+  </div>
+</div>
+
+<!-- Map -->
+<div id="map"></div>
+
+<!-- Game Canvas (smoke, skid marks) -->
+<canvas id="gameCanvas"></canvas>
+
+<!-- HUD -->
+<div id="hud">
+  <div id="title-banner">
+    <h1>Fast &amp; Furious</h1>
+    <div class="subtitle">TAURANGA STREETS</div>
+  </div>
+
+  <div id="controls-hint">
+    <span>↑</span> Accelerate &nbsp;&nbsp; <span>↓</span> Brake / Reverse<br/>
+    <span>← →</span> Steer &nbsp;&nbsp; <span>SPACE</span> Handbrake<br/>
+    <span>N</span> NOS Boost &nbsp;&nbsp; <span>R</span> Reset car
+  </div>
+
+  <div id="rpm-container">
+    <div id="rpm-label">RPM</div>
+    <div id="rpm-bar-bg"><div id="rpm-bar"></div></div>
+  </div>
+
+  <div id="nos-container">
+    <div id="nos-label">NOS</div>
+    <div id="nos-bar-bg"><div id="nos-bar"></div></div>
+  </div>
+
+  <div id="gear-display">N</div>
+
+  <canvas id="speedometer" width="180" height="180"></canvas>
+
+  <div id="drift-label">DRIFT!</div>
+  <div id="effect-overlay"></div>
+  <div id="speed-vignette"></div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+//  GAME STATE
+// ─────────────────────────────────────────────
+const TAURANGA = { lat: -37.6878, lng: 176.1651 };
+
+const state = {
+  // Car physics
+  x: 0, y: 0,           // world metres (relative to start)
+  vx: 0, vy: 0,         // velocity m/s in world frame
+  heading: 0,            // radians, 0 = north
+  speed: 0,              // m/s scalar
+  rpm: 0,
+  gear: 0,               // 0=N, 1-6
+  nos: 100,              // 0-100
+  nosActive: false,
+  handbrake: false,
+  driftTimer: 0,
+
+  // Input
+  keys: {},
+
+  // Map
+  map: null,
+  mapCenter: { ...TAURANGA },
+
+  // Particles
+  particles: [],
+  skidMarks: [],
+};
+
+const PHYSICS = {
+  maxSpeed: 80,          // m/s (~288 km/h)
+  acceleration: 18,
+  braking: 30,
+  reverseAccel: 10,
+  maxReverse: 12,
+  steerSpeed: 2.2,       // rad/s
+  friction: 0.92,        // longitudinal
+  lateralFriction: 0.78, // normal grip
+  handbrakeLatFriction: 0.45, // drift grip
+  nosBoost: 1.8,
+  nosDrain: 25,          // per second
+  nosRecharge: 5,        // per second when not used
+};
+
+const GEARS = [0, 10, 22, 36, 52, 66, 80]; // speed thresholds m/s
+
+// ─────────────────────────────────────────────
+//  START GAME
+// ─────────────────────────────────────────────
+function startGame() {
+  const key = document.getElementById('api-key-input').value.trim();
+  if (!key) {
+    document.getElementById('api-key-input').style.borderColor = '#ff0000';
+    document.getElementById('api-key-input').placeholder = 'API key required!';
+    return;
+  }
+  document.getElementById('start-screen').style.display = 'none';
+  loadGoogleMaps(key);
+}
+
+function loadGoogleMaps(apiKey) {
+  const script = document.createElement('script');
+  script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=initMap`;
+  script.async = true;
+  script.onerror = () => {
+    alert('Failed to load Google Maps. Check your API key and try again.');
+    document.getElementById('start-screen').style.display = 'flex';
+  };
+  document.head.appendChild(script);
+}
+
+window.initMap = function() {
+  const mapStyles = [
+    { elementType: 'geometry', stylers: [{ color: '#1a1a2e' }] },
+    { elementType: 'labels.text.fill', stylers: [{ color: '#746855' }] },
+    { elementType: 'labels.text.stroke', stylers: [{ color: '#242f3e' }] },
+    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#2c2c54' }] },
+    { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#17263c' }] },
+    { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#3d3d6b' }] },
+    { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: '#1f2835' }] },
+    { featureType: 'road.highway', elementType: 'labels.text.fill', stylers: [{ color: '#f3d19c' }] },
+    { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0d1b2a' }] },
+    { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#515c6d' }] },
+    { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#263144' }] },
+    { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#1a2e1a' }] },
+    { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#2f3948' }] },
+    { featureType: 'administrative', elementType: 'geometry.stroke', stylers: [{ color: '#4b6878' }] },
+    { featureType: 'administrative.land_parcel', elementType: 'labels.text.fill', stylers: [{ color: '#64779e' }] },
+    { featureType: 'administrative.province', elementType: 'geometry.stroke', stylers: [{ color: '#4b6878' }] },
+  ];
+
+  state.map = new google.maps.Map(document.getElementById('map'), {
+    center: TAURANGA,
+    zoom: 17,
+    tilt: 45,
+    heading: 0,
+    mapTypeId: 'roadmap',
+    styles: mapStyles,
+    disableDefaultUI: true,
+    gestureHandling: 'none',
+    keyboardShortcuts: false,
+  });
+
+  initCanvas();
+  initInput();
+  gameLoop();
+};
+
+// ─────────────────────────────────────────────
+//  CANVAS SETUP
+// ─────────────────────────────────────────────
+let canvas, ctx;
+
+function initCanvas() {
+  canvas = document.getElementById('gameCanvas');
+  ctx = canvas.getContext('2d');
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
+}
+
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+
+// ─────────────────────────────────────────────
+//  INPUT
+// ─────────────────────────────────────────────
+function initInput() {
+  window.addEventListener('keydown', e => {
+    state.keys[e.code] = true;
+    if (e.code === 'Space') e.preventDefault();
+    if (e.code === 'ArrowUp' || e.code === 'ArrowDown' ||
+        e.code === 'ArrowLeft' || e.code === 'ArrowRight') e.preventDefault();
+
+    // Reset
+    if (e.code === 'KeyR') {
+      state.x = 0; state.y = 0;
+      state.vx = 0; state.vy = 0;
+      state.heading = 0; state.speed = 0;
+      state.map.setCenter(TAURANGA);
+    }
+    // Toggle NOS
+    if (e.code === 'KeyN') state.nosActive = true;
+  });
+
+  window.addEventListener('keyup', e => {
+    state.keys[e.code] = false;
+    if (e.code === 'KeyN') state.nosActive = false;
+  });
+}
+
+// ─────────────────────────────────────────────
+//  PHYSICS UPDATE
+// ─────────────────────────────────────────────
+let lastTime = null;
+
+function updatePhysics(dt) {
+  const k = state.keys;
+  const accel   = k['ArrowUp'];
+  const brake   = k['ArrowDown'];
+  const left    = k['ArrowLeft'];
+  const right   = k['ArrowRight'];
+  const hbrake  = k['Space'];
+  const nos     = state.nosActive && state.nos > 0;
+
+  state.handbrake = hbrake;
+
+  // ── NOS ──
+  if (nos && state.nos > 0) {
+    state.nos = Math.max(0, state.nos - PHYSICS.nosDrain * dt);
+  } else if (!nos && state.nos < 100) {
+    state.nos = Math.min(100, state.nos + PHYSICS.nosRecharge * dt);
+  }
+
+  // ── Longitudinal force in heading direction ──
+  const sinH = Math.sin(state.heading);
+  const cosH = Math.cos(state.heading);
+
+  // project velocity onto heading axis (forward speed)
+  const fwdSpeed = state.vx * sinH + state.vy * cosH;
+
+  let engineForce = 0;
+  if (accel) {
+    engineForce = PHYSICS.acceleration * (nos ? PHYSICS.nosBoost : 1);
+    if (fwdSpeed < 0) engineForce += PHYSICS.braking; // help brake when reversing
+  }
+  if (brake) {
+    if (fwdSpeed > 0.5) engineForce = -PHYSICS.braking;
+    else if (fwdSpeed > -PHYSICS.maxReverse) engineForce = -PHYSICS.reverseAccel;
+  }
+
+  // Apply engine force along heading
+  state.vx += sinH * engineForce * dt;
+  state.vy += cosH * engineForce * dt;
+
+  // ── Steering ──
+  const absSpeed = Math.sqrt(state.vx*state.vx + state.vy*state.vy);
+  const steerAmount = Math.min(absSpeed / 15, 1) * PHYSICS.steerSpeed;
+  if (left)  state.heading -= steerAmount * dt * (fwdSpeed < 0 ? -1 : 1);
+  if (right) state.heading += steerAmount * dt * (fwdSpeed < 0 ? -1 : 1);
+
+  // ── Lateral friction (grip vs drift) ──
+  const latFriction = hbrake ? PHYSICS.handbrakeLatFriction : PHYSICS.lateralFriction;
+
+  // lateral velocity = velocity component perpendicular to heading
+  const rightX = Math.cos(state.heading);
+  const rightY = -Math.sin(state.heading);
+  const latSpeed = state.vx * rightX + state.vy * rightY;
+
+  state.vx -= rightX * latSpeed * (1 - latFriction);
+  state.vy -= rightY * latSpeed * (1 - latFriction);
+
+  // ── Longitudinal friction (drag / rolling) ──
+  if (!accel && !brake) {
+    state.vx *= Math.pow(PHYSICS.friction, dt * 60);
+    state.vy *= Math.pow(PHYSICS.friction, dt * 60);
+  }
+
+  // Cap max speed
+  const maxSpd = PHYSICS.maxSpeed * (nos ? PHYSICS.nosBoost : 1);
+  const spd = Math.sqrt(state.vx*state.vx + state.vy*state.vy);
+  if (spd > maxSpd) {
+    state.vx = state.vx / spd * maxSpd;
+    state.vy = state.vy / spd * maxSpd;
+  }
+
+  state.speed = spd;
+
+  // ── Move car position (metres) ──
+  state.x += state.vx * dt;
+  state.y += state.vy * dt;
+
+  // ── Drift detection ──
+  const drifting = hbrake && spd > 5 && Math.abs(latSpeed) > 3;
+  if (drifting) {
+    state.driftTimer += dt;
+    spawnSkidMark();
+    spawnSmoke();
+  } else {
+    state.driftTimer = Math.max(0, state.driftTimer - dt * 2);
+  }
+
+  // ── Gear calculation ──
+  const fwdSpeedAbs = Math.abs(fwdSpeed);
+  let gear = 0;
+  for (let i = 1; i < GEARS.length; i++) {
+    if (fwdSpeedAbs >= GEARS[i-1]) gear = i;
+  }
+  if (spd < 0.5) gear = 0;
+  state.gear = gear;
+
+  // ── RPM calculation ──
+  const gearMin = GEARS[Math.max(0, gear-1)] || 0;
+  const gearMax = GEARS[gear] || GEARS[GEARS.length-1];
+  const range = gearMax - gearMin || 1;
+  const rpmInGear = (fwdSpeedAbs - gearMin) / range;
+  state.rpm = Math.max(0.05, Math.min(1, rpmInGear + (accel ? 0.1 : 0)));
+
+  // ── Update map center ──
+  updateMapPosition();
+}
+
+// ─────────────────────────────────────────────
+//  MAP MOVEMENT
+//  Google Maps uses lat/lng; we work in metres
+//  At ~37.7°S: 1° lat ≈ 111,000 m, 1° lng ≈ 88,000 m
+// ─────────────────────────────────────────────
+const METRES_PER_LAT = 111000;
+const METRES_PER_LNG = 88000; // at ~37.7° latitude
+
+function updateMapPosition() {
+  const lat = TAURANGA.lat + state.y / METRES_PER_LAT;
+  const lng = TAURANGA.lng + state.x / METRES_PER_LNG;
+
+  state.map.setCenter({ lat, lng });
+
+  // Rotate map heading to match car direction
+  const headingDeg = state.heading * 180 / Math.PI;
+  state.map.setHeading(headingDeg);
+
+  // Dynamic zoom based on speed
+  const zoom = 17 - (state.speed / PHYSICS.maxSpeed) * 1.5;
+  state.map.setZoom(Math.max(15, zoom));
+}
+
+// ─────────────────────────────────────────────
+//  PARTICLES
+// ─────────────────────────────────────────────
+function spawnSmoke() {
+  const count = state.handbrake ? 3 : 1;
+  for (let i = 0; i < count; i++) {
+    state.particles.push({
+      x: canvas.width / 2 + (Math.random() - 0.5) * 20,
+      y: canvas.height / 2 + 20 + (Math.random() - 0.5) * 20,
+      vx: (Math.random() - 0.5) * 30,
+      vy: (Math.random() - 0.5) * 30 - 10,
+      life: 1,
+      maxLife: 1.2 + Math.random() * 0.8,
+      radius: 8 + Math.random() * 12,
+      color: state.nosActive ? '0,200,255' : '180,180,180',
+    });
+  }
+}
+
+function spawnSkidMark() {
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2;
+  // Two tyre tracks
+  for (let side = -1; side <= 1; side += 2) {
+    state.skidMarks.push({
+      x: cx + side * 15,
+      y: cy + 18,
+      life: 1,
+    });
+  }
+  if (state.skidMarks.length > 400) state.skidMarks.splice(0, 10);
+}
+
+function updateParticles(dt) {
+  for (let i = state.particles.length - 1; i >= 0; i--) {
+    const p = state.particles[i];
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.life -= dt / p.maxLife;
+    if (p.life <= 0) state.particles.splice(i, 1);
+  }
+  // Fade skid marks
+  for (const s of state.skidMarks) s.life -= dt * 0.15;
+}
+
+// ─────────────────────────────────────────────
+//  DRAW
+// ─────────────────────────────────────────────
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2;
+
+  // Skid marks (drawn before car)
+  for (const s of state.skidMarks) {
+    if (s.life <= 0) continue;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, 4, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(20,10,5,${s.life * 0.7})`;
+    ctx.fill();
+  }
+
+  // Smoke particles
+  for (const p of state.particles) {
+    const alpha = p.life * 0.4;
+    const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.radius * (2 - p.life));
+    grad.addColorStop(0, `rgba(${p.color},${alpha})`);
+    grad.addColorStop(1, `rgba(${p.color},0)`);
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.radius * (2 - p.life), 0, Math.PI*2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+  }
+
+  // ── Draw Car (always centered) ──
+  drawCar(cx, cy);
+
+  // ── Speed lines at high speed ──
+  if (state.speed > 40) {
+    const intensity = (state.speed - 40) / (PHYSICS.maxSpeed - 40);
+    ctx.save();
+    for (let i = 0; i < 12; i++) {
+      const angle = (i / 12) * Math.PI * 2;
+      const len = 80 + Math.random() * 120 * intensity;
+      const startR = 200;
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(angle) * startR, cy + Math.sin(angle) * startR);
+      ctx.lineTo(cx + Math.cos(angle) * (startR + len), cy + Math.sin(angle) * (startR + len));
+      ctx.strokeStyle = `rgba(255,100,0,${0.15 * intensity})`;
+      ctx.lineWidth = 1 + Math.random() * 2;
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // ── NOS flame effect ──
+  if (state.nosActive && state.nos > 0) {
+    ctx.save();
+    ctx.translate(cx, cy + 28);
+    for (let i = 0; i < 3; i++) {
+      const len = 20 + Math.random() * 30;
+      const spread = (Math.random() - 0.5) * 16;
+      const grad = ctx.createLinearGradient(spread, 0, spread, len);
+      grad.addColorStop(0, 'rgba(255,255,255,0.9)');
+      grad.addColorStop(0.3, 'rgba(0,200,255,0.8)');
+      grad.addColorStop(1, 'rgba(0,100,255,0)');
+      ctx.beginPath();
+      ctx.moveTo(spread - 3, 0);
+      ctx.lineTo(spread + 3, 0);
+      ctx.lineTo(spread + 1, len);
+      ctx.lineTo(spread - 1, len);
+      ctx.closePath();
+      ctx.fillStyle = grad;
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  updateHUD();
+}
+
+// ─────────────────────────────────────────────
+//  CAR SPRITE
+// ─────────────────────────────────────────────
+function drawCar(x, y) {
+  ctx.save();
+  ctx.translate(x, y);
+
+  // Shadow
+  ctx.save();
+  ctx.scale(1, 0.4);
+  const shadowGrad = ctx.createRadialGradient(0, 10, 0, 0, 10, 30);
+  shadowGrad.addColorStop(0, 'rgba(0,0,0,0.5)');
+  shadowGrad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.beginPath();
+  ctx.arc(0, 10, 30, 0, Math.PI*2);
+  ctx.fillStyle = shadowGrad;
+  ctx.fill();
+  ctx.restore();
+
+  // Body — sleek sports car silhouette
+  ctx.save();
+
+  // Main body
+  ctx.beginPath();
+  ctx.moveTo(-14, 20);   // rear-left
+  ctx.lineTo(-16, 5);    // mid-left
+  ctx.lineTo(-12, -8);   // hood-left
+  ctx.lineTo(-8, -18);   // nose-left
+  ctx.lineTo(8, -18);    // nose-right
+  ctx.lineTo(12, -8);    // hood-right
+  ctx.lineTo(16, 5);     // mid-right
+  ctx.lineTo(14, 20);    // rear-right
+  ctx.closePath();
+
+  const bodyGrad = ctx.createLinearGradient(-16, -18, 16, 20);
+  bodyGrad.addColorStop(0, '#cc0000');
+  bodyGrad.addColorStop(0.5, '#ff2200');
+  bodyGrad.addColorStop(1, '#880000');
+  ctx.fillStyle = bodyGrad;
+  ctx.fill();
+  ctx.strokeStyle = '#ff4400';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Cabin
+  ctx.beginPath();
+  ctx.moveTo(-10, 6);
+  ctx.lineTo(-9, -5);
+  ctx.lineTo(-5, -12);
+  ctx.lineTo(5, -12);
+  ctx.lineTo(9, -5);
+  ctx.lineTo(10, 6);
+  ctx.closePath();
+  const cabinGrad = ctx.createLinearGradient(-10, -12, 10, 6);
+  cabinGrad.addColorStop(0, 'rgba(100,180,255,0.6)');
+  cabinGrad.addColorStop(1, 'rgba(20,60,120,0.8)');
+  ctx.fillStyle = cabinGrad;
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(150,210,255,0.5)';
+  ctx.lineWidth = 0.5;
+  ctx.stroke();
+
+  // Headlights
+  ctx.fillStyle = '#ffffaa';
+  ctx.shadowColor = '#ffff00';
+  ctx.shadowBlur = 8;
+  ctx.beginPath(); ctx.ellipse(-7, -17, 3, 2, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(7, -17, 3, 2, 0, 0, Math.PI*2); ctx.fill();
+
+  // Tail lights
+  ctx.shadowColor = '#ff0000';
+  ctx.shadowBlur = 10;
+  ctx.fillStyle = '#ff2200';
+  ctx.beginPath(); ctx.ellipse(-11, 19, 3, 2, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(11, 19, 3, 2, 0, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Wheels
+  const wheels = [
+    [-14, 12], [14, 12],   // rear
+    [-13, -10], [13, -10], // front
+  ];
+  for (const [wx, wy] of wheels) {
+    ctx.fillStyle = '#111';
+    ctx.beginPath(); ctx.ellipse(wx, wy, 5, 4, 0, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#555';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    // Rim
+    ctx.fillStyle = '#888';
+    ctx.beginPath(); ctx.arc(wx, wy, 2.5, 0, Math.PI*2); ctx.fill();
+  }
+
+  // Body stripe
+  ctx.beginPath();
+  ctx.moveTo(-3, -17);
+  ctx.lineTo(-2, 20);
+  ctx.moveTo(3, -17);
+  ctx.lineTo(2, 20);
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.restore();
+  ctx.restore();
+}
+
+// ─────────────────────────────────────────────
+//  HUD UPDATE
+// ─────────────────────────────────────────────
+const speedoCanvas = document.getElementById('speedometer');
+const speedoCtx = speedoCanvas.getContext('2d');
+
+function updateHUD() {
+  const kmh = Math.round(state.speed * 3.6);
+  const nos = state.nos;
+  const rpm = state.rpm;
+
+  // RPM bar
+  document.getElementById('rpm-bar').style.width = (rpm * 100) + '%';
+
+  // NOS bar
+  document.getElementById('nos-bar').style.width = nos + '%';
+
+  // Gear display
+  const gearEl = document.getElementById('gear-display');
+  gearEl.textContent = state.gear === 0 ? (state.speed < 0.5 ? 'N' : 'R') : state.gear;
+
+  // Effect overlay (NOS)
+  const overlay = document.getElementById('effect-overlay');
+  if (state.nosActive && state.nos > 0) overlay.classList.add('nos-active');
+  else overlay.classList.remove('nos-active');
+
+  // Drift label
+  const driftEl = document.getElementById('drift-label');
+  const drifting = state.handbrake && state.speed > 5;
+  driftEl.style.opacity = drifting ? Math.min(1, state.driftTimer * 3) : 0;
+
+  // Speed vignette
+  const vigEl = document.getElementById('speed-vignette');
+  const vigIntensity = Math.max(0, (state.speed - 30) / PHYSICS.maxSpeed);
+  vigEl.style.background = `radial-gradient(ellipse at center, transparent 40%, rgba(255,50,0,${vigIntensity * 0.4}) 100%)`;
+  vigEl.style.opacity = 1;
+
+  // Speedometer
+  drawSpeedometer(speedoCtx, kmh, 260);
+}
+
+function drawSpeedometer(sctx, kmh, maxKmh) {
+  const W = 180, H = 180, cx = W/2, cy = H/2, r = 75;
+  sctx.clearRect(0, 0, W, H);
+
+  // Background
+  const bgGrad = sctx.createRadialGradient(cx, cy, 0, cx, cy, r+10);
+  bgGrad.addColorStop(0, 'rgba(20,20,30,0.95)');
+  bgGrad.addColorStop(1, 'rgba(5,5,10,0.98)');
+  sctx.beginPath();
+  sctx.arc(cx, cy, r+10, 0, Math.PI*2);
+  sctx.fillStyle = bgGrad;
+  sctx.fill();
+  sctx.strokeStyle = '#ff4400';
+  sctx.lineWidth = 2;
+  sctx.stroke();
+
+  const startAngle = Math.PI * 0.75;
+  const endAngle = Math.PI * 2.25;
+  const range = endAngle - startAngle;
+
+  // Track
+  sctx.beginPath();
+  sctx.arc(cx, cy, r - 8, startAngle, endAngle);
+  sctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  sctx.lineWidth = 8;
+  sctx.stroke();
+
+  // Speed arc
+  const fraction = Math.min(1, kmh / maxKmh);
+  const speedEnd = startAngle + range * fraction;
+  if (fraction > 0) {
+    const arcGrad = sctx.createLinearGradient(0, 0, W, H);
+    arcGrad.addColorStop(0, '#00ff88');
+    arcGrad.addColorStop(0.6, '#ffaa00');
+    arcGrad.addColorStop(1, '#ff2200');
+    sctx.beginPath();
+    sctx.arc(cx, cy, r - 8, startAngle, speedEnd);
+    sctx.strokeStyle = arcGrad;
+    sctx.lineWidth = 8;
+    sctx.lineCap = 'round';
+    sctx.stroke();
+  }
+
+  // Tick marks
+  for (let i = 0; i <= 10; i++) {
+    const angle = startAngle + (i / 10) * range;
+    const isMajor = i % 2 === 0;
+    const inner = r - (isMajor ? 20 : 15);
+    const outer = r - 5;
+    sctx.beginPath();
+    sctx.moveTo(cx + Math.cos(angle) * inner, cy + Math.sin(angle) * inner);
+    sctx.lineTo(cx + Math.cos(angle) * outer, cy + Math.sin(angle) * outer);
+    sctx.strokeStyle = isMajor ? '#fff' : '#555';
+    sctx.lineWidth = isMajor ? 2 : 1;
+    sctx.stroke();
+
+    if (isMajor) {
+      const labelR = r - 28;
+      const label = Math.round(maxKmh * i / 10);
+      sctx.fillStyle = '#888';
+      sctx.font = 'bold 9px Arial';
+      sctx.textAlign = 'center';
+      sctx.textBaseline = 'middle';
+      sctx.fillText(label, cx + Math.cos(angle) * labelR, cy + Math.sin(angle) * labelR);
+    }
+  }
+
+  // Needle
+  const needleAngle = startAngle + range * fraction;
+  sctx.save();
+  sctx.translate(cx, cy);
+  sctx.rotate(needleAngle);
+  sctx.beginPath();
+  sctx.moveTo(-5, 0);
+  sctx.lineTo(0, -r + 15);
+  sctx.lineTo(5, 0);
+  sctx.closePath();
+  sctx.fillStyle = '#ff2200';
+  sctx.shadowColor = '#ff4400';
+  sctx.shadowBlur = 8;
+  sctx.fill();
+  sctx.restore();
+
+  // Center cap
+  sctx.beginPath();
+  sctx.arc(cx, cy, 8, 0, Math.PI*2);
+  sctx.fillStyle = '#222';
+  sctx.fill();
+  sctx.strokeStyle = '#ff4400';
+  sctx.lineWidth = 1.5;
+  sctx.stroke();
+
+  // Speed text
+  sctx.fillStyle = '#fff';
+  sctx.font = 'bold 24px Arial Black';
+  sctx.textAlign = 'center';
+  sctx.textBaseline = 'middle';
+  sctx.fillText(kmh, cx, cy + 25);
+  sctx.fillStyle = '#ff4400';
+  sctx.font = 'bold 9px Arial';
+  sctx.fillText('KM/H', cx, cy + 40);
+}
+
+// ─────────────────────────────────────────────
+//  GAME LOOP
+// ─────────────────────────────────────────────
+function gameLoop(timestamp) {
+  if (!lastTime) lastTime = timestamp;
+  const dt = Math.min((timestamp - lastTime) / 1000, 0.05); // cap at 50ms
+  lastTime = timestamp;
+
+  updatePhysics(dt);
+  updateParticles(dt);
+  draw();
+
+  requestAnimationFrame(gameLoop);
+}
+</script>
+</body>
+</html>
