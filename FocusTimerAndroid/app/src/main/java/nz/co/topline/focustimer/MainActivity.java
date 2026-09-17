@@ -8,6 +8,7 @@ import android.graphics.drawable.GradientDrawable;
 import android.media.*;
 import android.os.*;
 import android.provider.Settings;
+import android.text.InputType;
 import android.view.*;
 import android.widget.*;
 import java.util.*;
@@ -51,8 +52,20 @@ public class MainActivity extends Activity {
         TextView sub=txt("Distraction free. A better you.",land?15:16,WHITE,false); sub.setGravity(Gravity.START); add(content,sub,0,land?2:4,0,land?16:28);
         int[] mins={15,25,30,45,60};
         for(int i=0;i<mins.length;i++){int m=mins[i];Button b=button(m+" Minutes",i==0?CYAN:PANEL);b.setTextColor(i==0?Color.rgb(7,22,25):WHITE);b.setTextSize(land?17:19);b.setOnClickListener(v->airplanePrompt(m));LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(land?50:66));lp.setMargins(0,dp(land?5:6),0,dp(land?5:6));content.addView(b,lp);}
+        Button custom=button("＋  Custom Timer",PANEL); custom.setTextColor(WHITE); custom.setTextSize(land?17:19); custom.setOnClickListener(v->customTimerPrompt()); LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,dp(land?50:66)); cp.setMargins(0,dp(land?5:6),0,dp(land?5:6)); content.addView(custom,cp);
         TextView settings=txt("⚙  Settings",land?15:17,MUTED,false); settings.setGravity(Gravity.CENTER); settings.setPadding(0,dp(land?14:28),0,dp(10)); settings.setOnClickListener(v->settings()); content.addView(settings,new LinearLayout.LayoutParams(-1,-2));
         ScrollView scroll=new ScrollView(this); scroll.setFillViewport(true); scroll.setBackgroundColor(BLACK); scroll.addView(content,new ScrollView.LayoutParams(-1,-2)); setContentView(scroll); immersive();
+    }
+
+    void customTimerPrompt(){
+        final Dialog dialog=new Dialog(this); dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        LinearLayout outer=new LinearLayout(this); outer.setOrientation(LinearLayout.VERTICAL); outer.setPadding(dp(24),dp(26),dp(24),dp(22)); outer.setBackground(round(PANEL2,26,BORDER,1));
+        TextView title=txt("Custom Timer",25,WHITE,true); title.setGravity(Gravity.CENTER); add(outer,title,0,0,0,8);
+        TextView body=txt("Enter your focus time in minutes.",16,MUTED,false); body.setGravity(Gravity.CENTER); add(outer,body,0,0,0,18);
+        EditText input=new EditText(this); input.setHint("Minutes"); input.setHintTextColor(MUTED); input.setTextColor(WHITE); input.setTextSize(22); input.setGravity(Gravity.CENTER); input.setSingleLine(true); input.setInputType(InputType.TYPE_CLASS_NUMBER); input.setPadding(dp(16),dp(12),dp(16),dp(12)); input.setBackground(round(Color.rgb(27,30,36),16,BORDER,1)); outer.addView(input,new LinearLayout.LayoutParams(-1,dp(60)));
+        Button start=button("Continue",CYAN); start.setTextColor(Color.rgb(7,22,25)); start.setOnClickListener(v->{String value=input.getText().toString().trim(); if(value.isEmpty()){Toast.makeText(this,"Enter a time in minutes",Toast.LENGTH_SHORT).show();return;} try{int m=Integer.parseInt(value);if(m<1||m>300){Toast.makeText(this,"Choose between 1 and 300 minutes",Toast.LENGTH_SHORT).show();return;}dialog.dismiss();airplanePrompt(m);}catch(Exception e){Toast.makeText(this,"Enter a valid number",Toast.LENGTH_SHORT).show();}}); LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-1,dp(58)); sp.setMargins(0,dp(16),0,dp(6)); outer.addView(start,sp);
+        TextView cancel=txt("Cancel",16,WHITE,false); cancel.setGravity(Gravity.CENTER); cancel.setPadding(0,dp(12),0,dp(6)); cancel.setOnClickListener(v->dialog.dismiss()); outer.addView(cancel,new LinearLayout.LayoutParams(-1,-2));
+        dialog.setContentView(outer); dialog.show(); Window w=dialog.getWindow(); if(w!=null){w.setBackgroundDrawableResource(android.R.color.transparent);w.setDimAmount(0.72f);w.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);w.setLayout(landscape()?dp(430):dp(330),WindowManager.LayoutParams.WRAP_CONTENT);}
     }
 
     void airplanePrompt(int m){
