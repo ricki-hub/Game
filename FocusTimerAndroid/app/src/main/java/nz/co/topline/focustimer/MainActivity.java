@@ -29,21 +29,23 @@ public class MainActivity extends Activity {
         "The work won't do itself.","Go earn it.","Start. Then keep going.","Stop fucking around.","Protect your attention.","Finish before you wander.","Get obsessed with progress.","No excuses for the next 20 minutes.","You're closer than you were.","Keep the momentum alive.",
         "Hard now. Easier later.","Don't let yourself off the hook.","Fuck average.","Get back in the zone.","Your goal is worth this.","Stay with it.","Work now. Celebrate later.","Another minute. Another win.","Become the person who finishes.","Now fucking send it."
     };
-    SharedPreferences p; CountDownTimer timer; TextView clock,msg,hold; boolean running=false,breaking=false,waiting=false; long pending=0,duration=0,remaining=0,nextMsg=MSG_EVERY; Runnable endRun;
+
+    SharedPreferences p; CountDownTimer timer; TextView clock,msg,hold,overtimeClock;
+    boolean running=false,breaking=false,waiting=false,overtime=false;
+    long pending=0,duration=0,remaining=0,nextMsg=MSG_EVERY,overtimeStart=0,overtimeMs=0;
+    Runnable endRun,overtimeRun;
 
     @Override public void onCreate(Bundle b){super.onCreate(b);requestWindowFeature(Window.FEATURE_NO_TITLE);p=getSharedPreferences("focus",MODE_PRIVATE);home();}
     @Override protected void onResume(){super.onResume();immersive();if(waiting&&pending>0){waiting=false;long d=pending;pending=0;startFocus(d);}}
-    @Override public void onBackPressed(){if(running||breaking)return;super.onBackPressed();}
-    @Override public void onConfigurationChanged(Configuration newConfig){super.onConfigurationChanged(newConfig);if(running)renderFocus(remaining);else if(breaking)renderBreak(remaining);else home();immersive();}
+    @Override public void onBackPressed(){if(running||breaking||overtime)return;super.onBackPressed();}
+    @Override public void onConfigurationChanged(Configuration newConfig){super.onConfigurationChanged(newConfig);if(running)renderFocus(remaining);else if(breaking)renderBreak(remaining);else if(overtime)renderOvertime();else home();immersive();}
 
     boolean landscape(){return getResources().getConfiguration().orientation==Configuration.ORIENTATION_LANDSCAPE;}
 
     void home(){
-        stop(); running=false; breaking=false; keep(false);
+        stop(); stopOvertime(); running=false; breaking=false; keep(false);
         boolean land=landscape();
-        LinearLayout content=root();
-        content.setGravity(Gravity.CENTER_HORIZONTAL);
-        content.setPadding(dp(30),dp(land?20:54),dp(30),dp(land?24:30));
+        LinearLayout content=root(); content.setGravity(Gravity.CENTER_HORIZONTAL); content.setPadding(dp(30),dp(land?20:54),dp(30),dp(land?24:30));
         LinearLayout header=new LinearLayout(this); header.setOrientation(LinearLayout.HORIZONTAL); header.setGravity(Gravity.CENTER_VERTICAL);
         LinearLayout brand=new LinearLayout(this); brand.setOrientation(LinearLayout.HORIZONTAL);
         TextView focus=txt("FOCUS ",land?28:31,WHITE,true), timerWord=txt("TIMER",land?28:31,CYAN,true);
@@ -63,7 +65,7 @@ public class MainActivity extends Activity {
         TextView title=txt("Custom Timer",25,WHITE,true); title.setGravity(Gravity.CENTER); add(outer,title,0,0,0,8);
         TextView body=txt("Enter your focus time in minutes.",16,MUTED,false); body.setGravity(Gravity.CENTER); add(outer,body,0,0,0,18);
         EditText input=new EditText(this); input.setHint("Minutes"); input.setHintTextColor(MUTED); input.setTextColor(WHITE); input.setTextSize(22); input.setGravity(Gravity.CENTER); input.setSingleLine(true); input.setInputType(InputType.TYPE_CLASS_NUMBER); input.setPadding(dp(16),dp(12),dp(16),dp(12)); input.setBackground(round(Color.rgb(27,30,36),16,BORDER,1)); outer.addView(input,new LinearLayout.LayoutParams(-1,dp(60)));
-        Button start=button("Continue",CYAN); start.setTextColor(Color.rgb(7,22,25)); start.setOnClickListener(v->{String value=input.getText().toString().trim(); if(value.isEmpty()){Toast.makeText(this,"Enter a time in minutes",Toast.LENGTH_SHORT).show();return;} try{int m=Integer.parseInt(value);if(m<1||m>300){Toast.makeText(this,"Choose between 1 and 300 minutes",Toast.LENGTH_SHORT).show();return;}dialog.dismiss();airplanePrompt(m);}catch(Exception e){Toast.makeText(this,"Enter a valid number",Toast.LENGTH_SHORT).show();}}); LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-1,dp(58)); sp.setMargins(0,dp(16),0,dp(6)); outer.addView(start,sp);
+        Button start=button("Continue",CYAN); start.setTextColor(Color.rgb(7,22,25)); start.setOnClickListener(v->{String value=input.getText().toString().trim();if(value.isEmpty()){Toast.makeText(this,"Enter a time in minutes",Toast.LENGTH_SHORT).show();return;}try{int m=Integer.parseInt(value);if(m<1||m>300){Toast.makeText(this,"Choose between 1 and 300 minutes",Toast.LENGTH_SHORT).show();return;}dialog.dismiss();airplanePrompt(m);}catch(Exception e){Toast.makeText(this,"Enter a valid number",Toast.LENGTH_SHORT).show();}}); LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-1,dp(58)); sp.setMargins(0,dp(16),0,dp(6)); outer.addView(start,sp);
         TextView cancel=txt("Cancel",16,WHITE,false); cancel.setGravity(Gravity.CENTER); cancel.setPadding(0,dp(12),0,dp(6)); cancel.setOnClickListener(v->dialog.dismiss()); outer.addView(cancel,new LinearLayout.LayoutParams(-1,-2));
         dialog.setContentView(outer); dialog.show(); Window w=dialog.getWindow(); if(w!=null){w.setBackgroundDrawableResource(android.R.color.transparent);w.setDimAmount(0.72f);w.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);w.setLayout(landscape()?dp(430):dp(330),WindowManager.LayoutParams.WRAP_CONTENT);}
     }
@@ -79,20 +81,69 @@ public class MainActivity extends Activity {
         dialog.setContentView(outer); Window w=dialog.getWindow(); if(w!=null){w.setBackgroundDrawableResource(android.R.color.transparent);w.setDimAmount(0.72f);w.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);w.setLayout(landscape()?dp(430):dp(330),WindowManager.LayoutParams.WRAP_CONTENT);} dialog.setOnShowListener(x->{Window ww=dialog.getWindow();if(ww!=null)ww.setLayout(landscape()?dp(430):dp(330),WindowManager.LayoutParams.WRAP_CONTENT);}); dialog.show();
     }
 
-    void startFocus(long d){duration=d;remaining=d;nextMsg=MSG_EVERY;running=true;breaking=false;keep(p.getBoolean("awake",true));renderFocus(d);timer=new CountDownTimer(d,250){public void onTick(long left){remaining=left;if(clock!=null)clock.setText(time(left));long elapsed=duration-left;if(p.getBoolean("messages",true)&&elapsed>=nextMsg){showMessage();nextMsg+=MSG_EVERY;}}public void onFinish(){remaining=0;complete();}}.start();}
+    void startFocus(long d){duration=d;remaining=d;nextMsg=MSG_EVERY;running=true;breaking=false;overtime=false;keep(p.getBoolean("awake",true));renderFocus(d);timer=new CountDownTimer(d,250){public void onTick(long left){remaining=left;if(clock!=null)clock.setText(time(left));long elapsed=duration-left;if(p.getBoolean("messages",true)&&elapsed>=nextMsg){showMessage();nextMsg+=MSG_EVERY;}}public void onFinish(){remaining=0;complete();}}.start();}
 
     void renderFocus(long left){boolean land=landscape();LinearLayout r=root();r.setGravity(Gravity.CENTER_HORIZONTAL);r.setPadding(dp(land?18:24),dp(land?12:50),dp(land?18:24),dp(land?12:32));TextView label=txt("Focus Time",land?14:16,WHITE,false);label.setGravity(Gravity.CENTER);r.addView(label,new LinearLayout.LayoutParams(-1,-2));clock=txt(time(left),land?128:112,WHITE,true);clock.setGravity(Gravity.CENTER);clock.setIncludeFontPadding(false);clock.setSingleLine(true);add(r,clock,0,land?6:24,0,land?14:34);msg=txt("",land?18:23,CYAN,true);msg.setGravity(Gravity.CENTER);msg.setPadding(dp(land?10:14),dp(land?10:18),dp(land?10:14),dp(land?10:18));msg.setBackground(round(Color.rgb(27,30,36),20,BORDER,1));msg.setVisibility(View.INVISIBLE);r.addView(msg,new LinearLayout.LayoutParams(-1,-2));hold=txt("Hold 3 seconds to end",land?12:14,MUTED,false);hold.setGravity(Gravity.CENTER);hold.setPadding(dp(12),dp(land?10:24),dp(12),dp(land?10:24));holdToEnd();add(r,hold,0,land?10:28,0,0);setContentView(r);immersive();}
 
     ArrayList<String> allMessages(){ArrayList<String> all=new ArrayList<>(Arrays.asList(messages));String custom=p.getString("custom_messages","");if(!custom.trim().isEmpty())for(String s:custom.split("\\n"))if(!s.trim().isEmpty())all.add(s.trim());return all;}
     void showMessage(){if(!running)return;ArrayList<String> all=allMessages();msg.setText("“\n"+all.get(rnd.nextInt(all.size()))+"\n”");msg.setAlpha(0f);msg.setVisibility(View.VISIBLE);msg.animate().alpha(1f).setDuration(350).start();h.postDelayed(()->{if(running&&msg!=null)msg.animate().alpha(0f).setDuration(350).withEndAction(()->msg.setVisibility(View.INVISIBLE)).start();},MSG_SHOW);}
 
-    void complete(){running=false;stop();keep(false);feedback();LinearLayout r=root();r.setGravity(Gravity.CENTER);r.setPadding(dp(28),dp(34),dp(28),dp(34));r.setBackgroundColor(Color.rgb(25,5,7));TextView cup=txt("★",54,Color.rgb(255,170,0),true);cup.setGravity(Gravity.CENTER);r.addView(cup,new LinearLayout.LayoutParams(-1,-2));TextView done=txt("Well done!",30,WHITE,true);done.setGravity(Gravity.CENTER);add(r,done,0,18,0,10);TextView sub=txt("You completed your focus session.",18,WHITE,false);sub.setGravity(Gravity.CENTER);add(r,sub,0,0,0,32);Button br=button("Start 5 Minute Break",RED);br.setOnClickListener(v->startBreak());r.addView(br,btnLp());Button ap=button("Turn Off Airplane Mode",REDDARK);ap.setOnClickListener(v->openAirplane());r.addView(ap,btnLp());Button hm=button("Back to Home",PANEL);hm.setOnClickListener(v->home());r.addView(hm,btnLp());setContentView(r);immersive();}
+    void complete(){
+        running=false; stop(); keep(p.getBoolean("awake",true)); completionVibrate();
+        overtime=true; overtimeMs=0; overtimeStart=SystemClock.elapsedRealtime(); renderOvertime(); startOvertimeTicker();
+    }
 
-    void startBreak(){running=false;breaking=true;remaining=BREAK;keep(p.getBoolean("awake",true));renderBreak(BREAK);timer=new CountDownTimer(BREAK,250){public void onTick(long left){remaining=left;if(clock!=null)clock.setText(time(left));}public void onFinish(){remaining=0;breaking=false;feedback();home();}}.start();}
+    void renderOvertime(){
+        boolean land=landscape();
+        LinearLayout r=root(); r.setGravity(Gravity.CENTER_HORIZONTAL); r.setPadding(dp(land?24:28),dp(land?16:38),dp(land?24:28),dp(land?16:30));
+        TextView done=txt("Focus block complete",land?24:30,WHITE,true); done.setGravity(Gravity.CENTER); add(r,done,0,0,0,8);
+        TextView sub=txt("Keep going if you're in the zone.",land?15:17,MUTED,false); sub.setGravity(Gravity.CENTER); add(r,sub,0,0,0,land?14:28);
+        TextView original=txt("Completed  "+time(duration),land?16:18,CYAN,true); original.setGravity(Gravity.CENTER); add(r,original,0,0,0,land?10:18);
+        TextView overLabel=txt("OVERTIME",land?14:15,RED,true); overLabel.setGravity(Gravity.CENTER); add(r,overLabel,0,0,0,4);
+        overtimeClock=txt("+"+time(overtimeMs),land?106:78,RED,true); overtimeClock.setGravity(Gravity.CENTER); overtimeClock.setIncludeFontPadding(false); overtimeClock.setSingleLine(true); add(r,overtimeClock,0,0,0,land?10:22);
+        Button stopBtn=button("Stop Focus",RED); stopBtn.setOnClickListener(v->finishOvertime(false)); r.addView(stopBtn,btnLp());
+        Button breakBtn=button("Start 5 Minute Break",PANEL); breakBtn.setOnClickListener(v->finishOvertime(true)); r.addView(breakBtn,btnLp());
+        setContentView(r); immersive();
+    }
+
+    void startOvertimeTicker(){
+        if(overtimeRun!=null)h.removeCallbacks(overtimeRun);
+        overtimeRun=new Runnable(){public void run(){if(!overtime)return;overtimeMs=SystemClock.elapsedRealtime()-overtimeStart;if(overtimeClock!=null)overtimeClock.setText("+"+time(overtimeMs));h.postDelayed(this,250);}};
+        h.post(overtimeRun);
+    }
+
+    void stopOvertime(){if(overtimeRun!=null){h.removeCallbacks(overtimeRun);overtimeRun=null;}overtime=false;}
+
+    void finishOvertime(boolean startBreakAfter){
+        if(!overtime)return;
+        overtimeMs=Math.max(overtimeMs,SystemClock.elapsedRealtime()-overtimeStart);
+        stopOvertime(); keep(false);
+        long total=duration+overtimeMs;
+        showFocusSummary(total,startBreakAfter);
+    }
+
+    void showFocusSummary(long total,boolean startBreakAfter){
+        final Dialog dialog=new Dialog(this); dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        LinearLayout outer=new LinearLayout(this); outer.setOrientation(LinearLayout.VERTICAL); outer.setGravity(Gravity.CENTER_HORIZONTAL); outer.setPadding(dp(24),dp(28),dp(24),dp(22)); outer.setBackground(round(PANEL2,26,BORDER,1));
+        TextView star=txt("★",48,Color.rgb(255,180,0),true); star.setGravity(Gravity.CENTER); outer.addView(star,new LinearLayout.LayoutParams(-1,-2));
+        TextView title=txt("Congratulations!",27,WHITE,true); title.setGravity(Gravity.CENTER); add(outer,title,0,8,0,12);
+        TextView body=txt("Congratulations on focusing on your task for\n"+friendlyTime(total)+".",18,WHITE,false); body.setGravity(Gravity.CENTER); body.setLineSpacing(0,1.15f); add(outer,body,0,0,0,20);
+        Button primary=button(startBreakAfter?"Start 5 Minute Break":"Back to Home",CYAN); primary.setTextColor(Color.rgb(7,22,25)); primary.setOnClickListener(v->{dialog.dismiss();if(startBreakAfter)startBreak();else home();}); outer.addView(primary,btnLp());
+        if(!startBreakAfter){Button br=button("Start 5 Minute Break",PANEL); br.setOnClickListener(v->{dialog.dismiss();startBreak();}); outer.addView(br,btnLp());}
+        dialog.setCancelable(false); dialog.setContentView(outer); dialog.show(); Window w=dialog.getWindow(); if(w!=null){w.setBackgroundDrawableResource(android.R.color.transparent);w.setDimAmount(0.78f);w.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);w.setLayout(landscape()?dp(460):dp(340),WindowManager.LayoutParams.WRAP_CONTENT);}
+    }
+
+    void completionVibrate(){
+        if(!p.getBoolean("vibrate",true))return;
+        try{Vibrator v=(Vibrator)getSystemService(Context.VIBRATOR_SERVICE);if(v!=null){if(Build.VERSION.SDK_INT>=26)v.vibrate(VibrationEffect.createOneShot(10000,VibrationEffect.DEFAULT_AMPLITUDE));else v.vibrate(10000);}}catch(Exception ignored){}
+        if(p.getBoolean("sound",true))try{ToneGenerator t=new ToneGenerator(AudioManager.STREAM_NOTIFICATION,80);t.startTone(ToneGenerator.TONE_PROP_BEEP2,500);h.postDelayed(t::release,800);}catch(Exception ignored){}
+    }
+
+    void startBreak(){stopOvertime();running=false;breaking=true;remaining=BREAK;keep(p.getBoolean("awake",true));renderBreak(BREAK);timer=new CountDownTimer(BREAK,250){public void onTick(long left){remaining=left;if(clock!=null)clock.setText(time(left));}public void onFinish(){remaining=0;breaking=false;feedback();home();}}.start();}
     void renderBreak(long left){boolean land=landscape();LinearLayout r=root();r.setGravity(Gravity.CENTER);r.setPadding(dp(land?20:28),dp(land?12:34),dp(land?20:28),dp(land?12:34));r.setBackgroundColor(Color.rgb(25,5,7));TextView lab=txt("Break Time",land?15:17,Color.rgb(255,125,130),false);lab.setGravity(Gravity.CENTER);r.addView(lab,new LinearLayout.LayoutParams(-1,-2));clock=txt(time(left),land?128:112,Color.rgb(255,112,120),true);clock.setGravity(Gravity.CENTER);clock.setIncludeFontPadding(false);clock.setSingleLine(true);add(r,clock,0,land?6:20,0,land?12:32);TextView t=txt("Take a break.\nRecharge. Then get back to it.",land?15:18,WHITE,false);t.setGravity(Gravity.CENTER);r.addView(t,new LinearLayout.LayoutParams(-1,-2));Button end=button("End Break",REDDARK);end.setOnClickListener(v->home());add(r,end,0,land?16:34,0,0);setContentView(r);immersive();}
 
     void settings(){
-        stop(); LinearLayout r=root(); r.setPadding(dp(22),dp(38),dp(22),dp(28));
+        stop(); stopOvertime(); LinearLayout r=root(); r.setPadding(dp(22),dp(38),dp(22),dp(28));
         TextView title=txt("‹  Settings",26,WHITE,true); title.setOnClickListener(v->home()); add(r,title,0,0,0,20);
         r.addView(toggle("Motivational messages","messages",true)); r.addView(toggle("Sound on completion","sound",true)); r.addView(toggle("Vibration on completion","vibrate",true)); r.addView(toggle("Keep screen awake","awake",true));
         TextView addTitle=txt("Add your own motivational message",17,WHITE,true); add(r,addTitle,2,26,2,8);
@@ -108,9 +159,9 @@ public class MainActivity extends Activity {
     View toggle(String name,String key,boolean def){LinearLayout row=new LinearLayout(this);row.setOrientation(LinearLayout.HORIZONTAL);row.setGravity(Gravity.CENTER_VERTICAL);row.setPadding(dp(16),dp(10),dp(12),dp(10));row.setBackground(round(Color.rgb(27,30,36),16,BORDER,1));TextView t=txt(name,16,WHITE,false);row.addView(t,new LinearLayout.LayoutParams(0,dp(52),1));Switch sw=new Switch(this);sw.setChecked(p.getBoolean(key,def));sw.setOnCheckedChangeListener((b,on)->p.edit().putBoolean(key,on).apply());row.addView(sw);LinearLayout box=new LinearLayout(this);box.setPadding(0,dp(5),0,dp(5));box.addView(row,new LinearLayout.LayoutParams(-1,-2));return box;}
 
     void holdToEnd(){endRun=()->{if(running){running=false;stop();home();}};hold.setOnTouchListener((v,e)->{if(e.getAction()==MotionEvent.ACTION_DOWN){hold.setText("Keep holding...");hold.setTextColor(RED);h.postDelayed(endRun,HOLD);return true;}if(e.getAction()==MotionEvent.ACTION_UP||e.getAction()==MotionEvent.ACTION_CANCEL){h.removeCallbacks(endRun);if(running){hold.setText("Hold 3 seconds to end");hold.setTextColor(MUTED);}return true;}return true;});}
-    void feedback(){if(p.getBoolean("sound",true))try{ToneGenerator t=new ToneGenerator(AudioManager.STREAM_NOTIFICATION,80);t.startTone(ToneGenerator.TONE_PROP_BEEP2,350);h.postDelayed(t::release,700);}catch(Exception ignored){}if(p.getBoolean("vibrate",true))try{Vibrator v=(Vibrator)getSystemService(Context.VIBRATOR_SERVICE);if(v!=null)v.vibrate(VibrationEffect.createOneShot(350,VibrationEffect.DEFAULT_AMPLITUDE));}catch(Exception ignored){}}
+    void feedback(){if(p.getBoolean("sound",true))try{ToneGenerator t=new ToneGenerator(AudioManager.STREAM_NOTIFICATION,80);t.startTone(ToneGenerator.TONE_PROP_BEEP2,350);h.postDelayed(t::release,700);}catch(Exception ignored){}if(p.getBoolean("vibrate",true))try{Vibrator v=(Vibrator)getSystemService(Context.VIBRATOR_SERVICE);if(v!=null){if(Build.VERSION.SDK_INT>=26)v.vibrate(VibrationEffect.createOneShot(350,VibrationEffect.DEFAULT_AMPLITUDE));else v.vibrate(350);}}catch(Exception ignored){}}
     void openAirplane(){try{startActivity(new Intent(Settings.ACTION_AIRPLANE_MODE_SETTINGS));}catch(Exception e){startActivity(new Intent(Settings.ACTION_SETTINGS));}}
-    void stop(){if(timer!=null){timer.cancel();timer=null;}h.removeCallbacksAndMessages(null);}
+    void stop(){if(timer!=null){timer.cancel();timer=null;}h.removeCallbacks(endRun);}
     void keep(boolean on){if(on)getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);}
     LinearLayout root(){LinearLayout r=new LinearLayout(this);r.setOrientation(LinearLayout.VERTICAL);r.setBackgroundColor(BLACK);return r;}
     TextView txt(String s,float z,int c,boolean bold){TextView v=new TextView(this);v.setText(s);v.setTextSize(z);v.setTextColor(c);v.setTypeface(Typeface.create("sans",bold?Typeface.BOLD:Typeface.NORMAL));return v;}
@@ -119,6 +170,7 @@ public class MainActivity extends Activity {
     LinearLayout.LayoutParams btnLp(){LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,dp(58));lp.setMargins(0,dp(8),0,dp(8));return lp;}
     void add(LinearLayout r,View v,int l,int t,int rr,int b){LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(dp(l),dp(t),dp(rr),dp(b));r.addView(v,lp);}
     String time(long ms){long s=(ms+999)/1000;return String.format(Locale.getDefault(),"%02d:%02d",s/60,s%60);}
+    String friendlyTime(long ms){long total=(ms+500)/1000;long h=total/3600,m=(total%3600)/60,s=total%60;if(h>0)return String.format(Locale.getDefault(),"%d hr %02d min %02d sec",h,m,s);return String.format(Locale.getDefault(),"%d min %02d sec",m,s);}
     int dp(int x){return Math.round(x*getResources().getDisplayMetrics().density);}
     void immersive(){if(Build.VERSION.SDK_INT>=30){WindowInsetsController c=getWindow().getInsetsController();if(c!=null){c.hide(WindowInsets.Type.statusBars()|WindowInsets.Type.navigationBars());c.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);}}else getWindow().getDecorView().setSystemUiVisibility(5894);}
 }
