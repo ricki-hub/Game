@@ -39,6 +39,10 @@ jobs:
         working-directory: FocusTimerAndroid
         run: python3 apply_pause_patch.py
 
+      - name: Apply Aeroplane Mode summary update
+        working-directory: FocusTimerAndroid
+        run: python3 apply_airplane_summary_patch.py
+
       - name: Build debug APK
         working-directory: FocusTimerAndroid
         run: gradle :app:assembleDebug --no-daemon
